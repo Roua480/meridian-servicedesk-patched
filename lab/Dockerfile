@@ -10,7 +10,9 @@ RUN npm install -g corepack && corepack enable && yarn install && yarn build:sta
 # --- Stage 2: application ---
 # bookworm, not bullseye: Debian 11 is archived, so apt-get update fails on it.
 FROM python:3.13-slim-bookworm AS app
-RUN apt-get update && apt-get install -yqq \
+# Check-Valid-Until=false: the bookworm-updates Release can read as "expired"
+# against a later build-host clock, which fails apt-get update with exit 100.
+RUN apt-get -o Acquire::Check-Valid-Until=false update && apt-get install -yqq \
       postgresql-client curl \
  && rm -rf /var/lib/apt/lists/*
 

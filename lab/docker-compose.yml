@@ -7,6 +7,13 @@
 # vulnerable and must never be reachable from a network you do not control.
 # Port 5001, not 5000: macOS AirPlay owns 5000 and answers every request itself.
 # Not 8080 either, which is Burp's own proxy.
+#
+# Explicit project name: without it Compose names the project after this file's
+# directory ("lab"), so two lab checkouts that both live in a lab/ folder share
+# one project, its containers and its volumes, and cannot run at once. Pin the
+# name here. To run a second lab beside this one, override with `-p <name>`, and
+# `docker compose -f lab/docker-compose.yml down -v` a previous one first.
+name: meridian-servicedesk
 
 volumes:
   pgdata:
@@ -25,6 +32,17 @@ services:
       - static:/srv/static:ro
     depends_on:
       - app
+      - php
+
+  # A PHP interpreter for the upload lab. The media directory is shared with it,
+  # so a request that nginx routes to this service executes the uploaded file.
+  # Nothing else in the course is PHP; this exists only so the classic
+  # upload-a-web-shell attack (file-upload lab, B1) is reproducible end to end.
+  php:
+    image: php:8.3-fpm-alpine
+    restart: unless-stopped
+    volumes:
+      - media:/srv/media:ro
 
   app:
     build:
