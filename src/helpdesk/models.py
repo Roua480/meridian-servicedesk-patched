@@ -14,6 +14,8 @@ import mimetypes
 import os
 import re
 import uuid
+from pathlib import Path
+from uuid import uuid4
 from io import StringIO
 
 from django.conf import settings
@@ -41,7 +43,11 @@ from .lib import (
     format_time_spent,
 )
 from .templated_email import send_templated_mail
-from .validators import validate_file_extension
+from .validators import (
+    validate_file_extension,
+    validate_image_content,
+    validate_attachment_size,
+)
 
 User = get_user_model()
 
@@ -1222,7 +1228,11 @@ class Attachment(models.Model):
         _("File"),
         upload_to=attachment_path,
         max_length=1000,
-        validators=[validate_file_extension],
+        validators=[
+    validate_file_extension,
+    validate_image_content,
+    validate_attachment_size,
+],
     )
 
     filename = models.CharField(
@@ -1290,14 +1300,17 @@ class FollowUpAttachment(Attachment):
     )
 
     def attachment_path(self, filename):
-        path = f"helpdesk/attachments/{self.followup.ticket.ticket_for_url}-{self.followup.ticket.secret_key}/{self.followup.id}"
-        att_path = os.path.join(settings.MEDIA_ROOT, path)
-        if (
-            settings.STORAGES == "django.core.files.storage.FileSystemStorage"
-            and not os.path.exists(att_path)
-        ):
-            os.makedirs(att_path, helpdesk_settings.HELPDESK_ATTACHMENT_DIR_PERMS)
-        return os.path.join(path, filename)
+        extension = Path(filename).suffix.lower()
+        stored_filename = f"{uuid4().hex}{extension}"
+
+        path = (
+            f"helpdesk/attachments/"
+            f"{self.followup.ticket.ticket_for_url}-"
+            f"{self.followup.ticket.secret_key}/"
+            f"{self.followup.id}"
+        )
+
+        return os.path.join(path, stored_filename)
 
 
 class KBIAttachment(Attachment):

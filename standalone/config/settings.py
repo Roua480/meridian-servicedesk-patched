@@ -280,10 +280,18 @@ LOGGING = {
         },
     },
     "loggers": {
-        "django": {
-            "handlers": ["console"],
-            "level": "ERROR",  # Change to 'DEBUG' if you want to print all debug messages as well
-            "propagate": True,
-        },
+    "django": {
+        "handlers": ["console"],
+        "level": "ERROR",
+        "propagate": True,
     },
+    "helpdesk": {
+        "handlers": ["console"],
+        "level": "INFO",
+        "propagate": False,
+    },
+},
 }
+
+# Maximum size of non-file form data (10 MB)
+DATA_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024

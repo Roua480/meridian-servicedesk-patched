@@ -1459,16 +1459,35 @@ def debug_info(request):
 
 @helpdesk_staff_member_required
 def download_attachment(request):
-    """Download an attachment by its stored path under the media directory."""
-    import os
+    from pathlib import Path
 
-    rel = request.GET.get("path", "")
-    full = os.path.join(settings.MEDIA_ROOT, rel)
-    with open(full, "rb") as handle:
-        data = handle.read()
-    response = HttpResponse(data, content_type="application/octet-stream")
-    response["Content-Disposition"] = f'attachment; filename="{os.path.basename(rel)}"'
-    return response
+    from django.conf import settings
+    from django.http import FileResponse, Http404
+
+    base = Path(settings.MEDIA_ROOT).resolve()
+    relative_path = request.GET.get("path", "")
+
+    if not relative_path:
+        raise Http404("File not found")
+
+    requested = Path(relative_path)
+
+    if requested.is_absolute():
+        raise Http404("File not found")
+
+    target = (base / requested).resolve()
+
+    if not target.is_relative_to(base) or not target.is_file():
+        raise Http404("File not found")
+
+    try:
+        return FileResponse(
+            target.open("rb"),
+            as_attachment=True,
+            filename=target.name,
+        )
+    except OSError:
+        raise Http404("File not found")
 
 
 @helpdesk_staff_member_required

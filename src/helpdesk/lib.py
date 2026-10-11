@@ -161,6 +161,7 @@ def process_attachments(followup, attached_files):
             from helpdesk.models import FollowUpAttachment
 
             filename = smart_str(attached.name)
+
             att = FollowUpAttachment(
                 followup=followup,
                 file=attached,
@@ -170,25 +171,40 @@ def process_attachments(followup, attached_files):
                 or "application/octet-stream",
                 size=attached.size,
             )
+
             try:
                 att.full_clean()
+
             except ValidationError as e:
                 errors.add(e)
+
+                # Log rejection without exposing the original filename
+                logger.warning(
+                    "Attachment rejected: ticket_id=%s, size=%s, reason=validation_failed",
+                    followup.ticket_id,
+                    attached.size,
+                )
+
             else:
                 att.save()
 
+                # Log successful upload using the generated storage name
+                logger.info(
+                    "Attachment accepted: ticket_id=%s, stored_name=%s, size=%s, type=%s",
+                    followup.ticket_id,
+                    att.file.name,
+                    attached.size,
+                    "validated",
+                )
+
                 if attached.size < max_email_attachment_size:
-                    # Only files smaller than 512kb (or as defined in
-                    # settings.HELPDESK_MAX_EMAIL_ATTACHMENT_SIZE) are sent via
-                    # email.
+                    # Only small attachments are included in emails.
                     attachments.append([filename, att.file])
 
     if errors:
         raise ValidationError(list(errors))
 
     return attachments
-
-
 def format_time_spent(time_spent):
     """Format time_spent attribute to "[H]HHh:MMm" text string to be align in
     all graphical outputs
