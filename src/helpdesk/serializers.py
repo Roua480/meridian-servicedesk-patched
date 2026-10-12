@@ -9,6 +9,7 @@ from .lib import format_time_spent
 from .models import CustomField, FollowUp, FollowUpAttachment, Ticket
 from .update_ticket import update_ticket
 from .user import HelpdeskUser
+from .validators import log_attachment_decision
 
 
 class DatatablesTicketSerializer(serializers.ModelSerializer):
@@ -102,9 +103,46 @@ class DatatablesTicketSerializer(serializers.ModelSerializer):
 
 
 class FollowUpAttachmentSerializer(serializers.ModelSerializer):
+    def run_validation(self, data=serializers.empty):
+        try:
+            return super().run_validation(data)
+        except ValidationError as error:
+            if (
+                isinstance(error.detail, dict) and "file" in error.detail
+                and data.get("file") is not None
+            ):
+                log_attachment_decision(
+                    data["file"], self.context["request"].user.pk,
+                    errors=[
+                        DjangoValidationError("", code=item.code)
+                        for item in error.detail["file"]
+                    ],
+                )
+            raise
+
+    def create(self, validated_data):
+        try:
+            return super().create(validated_data)
+        except DjangoValidationError as error:
+            log_attachment_decision(
+                validated_data["file"], validated_data["followup"].user_id,
+                errors=error.error_list,
+            )
+            raise ValidationError({"file": error.messages}) from None
+
+    def update(self, instance, validated_data):
+        try:
+            return super().update(instance, validated_data)
+        except DjangoValidationError as error:
+            log_attachment_decision(
+                instance.file, instance.followup.user_id, errors=error.error_list,
+            )
+            raise ValidationError({"file": error.messages}) from None
+
     class Meta:
         model = FollowUpAttachment
         fields = ("id", "followup", "file", "filename", "mime_type", "size")
+        read_only_fields = ("size",)
 
 
 class FollowUpSerializer(serializers.ModelSerializer):
@@ -138,16 +176,19 @@ class FollowUpSerializer(serializers.ModelSerializer):
             user = validated_data["user"]
         else:
             user = self.context["request"].user
-        return update_ticket(
-            user=user,
-            ticket=validated_data["ticket"],
-            title=validated_data.get("title", None),
-            comment=validated_data.get("comment", ""),
-            files=validated_data.get("attachments", None),
-            public=validated_data.get("public", False),
-            new_status=validated_data.get("new_status", None),
-            time_spent=validated_data.get("time_spent", None),
-        )
+        try:
+            return update_ticket(
+                user=user,
+                ticket=validated_data["ticket"],
+                title=validated_data.get("title", None),
+                comment=validated_data.get("comment", ""),
+                files=validated_data.get("attachments", None),
+                public=validated_data.get("public", False),
+                new_status=validated_data.get("new_status", None),
+                time_spent=validated_data.get("time_spent", None),
+            )
+        except DjangoValidationError as error:
+            raise ValidationError({"attachments": error.messages}) from None
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -299,9 +340,15 @@ class TicketSerializer(BaseTicketSerializer):
 
         files = {"attachment": data.pop("attachment", None)}
 
-        ticket_form = TicketForm(data=data, files=files, queue_choices=queue_choices)
+        ticket_form = TicketForm(
+            data=data, files=files, queue_choices=queue_choices,
+            upload_owner_id=self.context["request"].user.pk,
+        )
         if ticket_form.is_valid():
-            ticket = ticket_form.save(user=self.context["request"].user)
+            try:
+                ticket = ticket_form.save(user=self.context["request"].user)
+            except DjangoValidationError as error:
+                raise ValidationError({"attachment": error.messages}) from None
             ticket.set_custom_field_values()
             return ticket
 

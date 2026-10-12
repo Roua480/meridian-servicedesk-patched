@@ -11,6 +11,7 @@ packages = [
 ]
 dependencies = [
     "django>=5.2",
+    "pillow>=11.3.0",
     # Kept as a hard dependency on purpose: it activates automatically when listed
     # in INSTALLED_APPS, so a copy that follows our
     # own instructions would refuse to start without it.

@@ -13,10 +13,12 @@ from datetime import date, datetime, time
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ImproperlyConfigured, ValidationError
+from django.db.models import Sum
 from django.db.models.query import QuerySet
 from django.utils.encoding import smart_str
 
 from helpdesk import settings as helpdesk_settings
+from helpdesk.validators import log_attachment_decision
 
 logger = logging.getLogger("helpdesk")
 
@@ -149,6 +151,17 @@ def text_is_spam(text, request):
     return False
 
 
+def validate_attachment_quota(value, owner_id, attachment_id=None):
+    from helpdesk.models import FollowUpAttachment
+
+    stored = FollowUpAttachment.objects.filter(
+        followup__user_id=owner_id,
+    ).exclude(file="").exclude(pk=attachment_id)
+    used = stored.aggregate(total=Sum("size"))["total"] or 0
+    if used + value.size > 50 * 1024 * 1024:
+        raise ValidationError("Upload quota exceeded.", code="attachment_quota")
+
+
 def process_attachments(followup, attached_files):
     max_email_attachment_size = getattr(
         settings, "HELPDESK_MAX_EMAIL_ATTACHMENT_SIZE", 512000
@@ -171,32 +184,25 @@ def process_attachments(followup, attached_files):
                 or "application/octet-stream",
                 size=attached.size,
             )
+            validated_file = att.file
 
             try:
                 att.full_clean()
+                att.save()
 
             except ValidationError as e:
                 errors.add(e)
 
-                # Log rejection without exposing the original filename
-                logger.warning(
-                    "Attachment rejected: ticket_id=%s, size=%s, reason=validation_failed",
-                    followup.ticket_id,
-                    attached.size,
+                log_attachment_decision(
+                    validated_file, followup.user_id,
+                    errors=[
+                        error for error_list in e.error_dict.values()
+                        for error in error_list
+                    ]
+                    if hasattr(e, "error_dict") else e.error_list,
                 )
 
             else:
-                att.save()
-
-                # Log successful upload using the generated storage name
-                logger.info(
-                    "Attachment accepted: ticket_id=%s, stored_name=%s, size=%s, type=%s",
-                    followup.ticket_id,
-                    att.file.name,
-                    attached.size,
-                    "validated",
-                )
-
                 if attached.size < max_email_attachment_size:
                     # Only small attachments are included in emails.
                     attachments.append([filename, att.file])

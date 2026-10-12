@@ -23,6 +23,7 @@ from helpdesk.lib import (
     convert_value,
     get_assignable_users,
     process_attachments,
+    validate_attachment_quota,
     safe_template_context,
 )
 from helpdesk.models import (
@@ -51,6 +52,7 @@ from helpdesk.validators import (
     validate_file_extension,
     validate_image_content,
     validate_attachment_size,
+    log_attachment_decision,
 )
 
 if helpdesk_settings.HELPDESK_KB_ENABLED:
@@ -357,6 +359,7 @@ class AbstractTicketForm(CustomFieldMixin, forms.Form):
         js = ("helpdesk/js/init_due_date.js", "helpdesk/js/init_datetime_classes.js")
 
     def __init__(self, kbcategory=None, *args, **kwargs):
+        self.upload_owner_id = kwargs.pop("upload_owner_id", None)
         super().__init__(*args, **kwargs)
         if helpdesk_settings.HELPDESK_KB_ENABLED and kbcategory:
             self.fields["kbitem"] = forms.ChoiceField(
@@ -370,6 +373,22 @@ class AbstractTicketForm(CustomFieldMixin, forms.Form):
                     )
                 ],
             )
+
+    def _clean_fields(self):
+        super()._clean_fields()
+        if "attachment" in self.errors:
+            value = self.files.get("attachment")
+            if value is not None:
+                log_attachment_decision(
+                    value, self.upload_owner_id,
+                    errors=self.errors.as_data()["attachment"],
+                )
+
+    def clean_attachment(self):
+        value = self.cleaned_data.get("attachment")
+        if value is not None:
+            validate_attachment_quota(value, self.upload_owner_id)
+        return value
 
     def _add_form_custom_fields(self, staff_only_filter=None):
         if staff_only_filter is None:

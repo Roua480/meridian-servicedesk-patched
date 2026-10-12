@@ -1299,6 +1299,32 @@ class FollowUpAttachment(Attachment):
         verbose_name=_("Follow-up"),
     )
 
+    def save(self, *args, **kwargs):
+        if self.file._committed:
+            return super().save(*args, **kwargs)
+
+        from django.db import connection, transaction
+        from helpdesk.lib import validate_attachment_quota
+        from helpdesk.validators import log_attachment_decision
+
+        uploaded_file = self.file
+        # Use the actual uploaded size, including when an API supplies metadata.
+        self.size = uploaded_file.size
+        with transaction.atomic():
+            if connection.vendor == "postgresql":
+                # One lock per owner; zero is the shared anonymous bucket.
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "SELECT pg_advisory_xact_lock(%s, %s)",
+                        [503002, self.followup.user_id or 0],
+                    )
+            validate_attachment_quota(uploaded_file, self.followup.user_id, self.pk)
+            result = super().save(*args, **kwargs)
+        log_attachment_decision(
+            uploaded_file, self.followup.user_id, stored_name=self.file.name,
+        )
+        return result
+
     def attachment_path(self, filename):
         extension = Path(filename).suffix.lower()
         stored_filename = f"{uuid4().hex}{extension}"

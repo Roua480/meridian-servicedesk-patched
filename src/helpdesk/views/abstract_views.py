@@ -1,7 +1,19 @@
+from django.core.exceptions import ValidationError
+
 from helpdesk.models import CustomField, KBItem, Queue
 
 
 class AbstractCreateTicketMixin:
+    def post(self, request, *args, **kwargs):
+        try:
+            return super().post(request, *args, **kwargs)
+        except ValidationError as error:
+            # The quota may fill between form validation and the locked save.
+            form = self.get_form()
+            form.is_valid()
+            form.add_error("attachment", error.messages)
+            return self.form_invalid(form)
+
     def get_initial(self):
         initial_data = {}
         request = self.request
@@ -31,6 +43,9 @@ class AbstractCreateTicketMixin:
 
     def get_form_kwargs(self, *args, **kwargs):
         kwargs = super().get_form_kwargs(*args, **kwargs)
+        kwargs["upload_owner_id"] = (
+            self.request.user.pk if self.request.user.is_authenticated else None
+        )
         kbitem = self.request.GET.get(
             "kbitem",
             self.request.POST.get("kbitem", None),

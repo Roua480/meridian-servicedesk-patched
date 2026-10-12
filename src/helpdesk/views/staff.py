@@ -1464,30 +1464,26 @@ def download_attachment(request):
     from django.conf import settings
     from django.http import FileResponse, Http404
 
-    base = Path(settings.MEDIA_ROOT).resolve()
     relative_path = request.GET.get("path", "")
 
     if not relative_path:
         raise Http404("File not found")
 
-    requested = Path(relative_path)
-
-    if requested.is_absolute():
-        raise Http404("File not found")
-
-    target = (base / requested).resolve()
-
-    if not target.is_relative_to(base) or not target.is_file():
-        raise Http404("File not found")
-
     try:
+        base = Path(settings.MEDIA_ROOT).resolve()
+        requested = Path(relative_path)
+        if requested.is_absolute():
+            raise Http404("File not found")
+        target = (base / requested).resolve()
+        if not target.is_relative_to(base) or not target.is_file():
+            raise Http404("File not found")
         return FileResponse(
             target.open("rb"),
             as_attachment=True,
             filename=target.name,
         )
-    except OSError:
-        raise Http404("File not found")
+    except (OSError, ValueError, RuntimeError):
+        raise Http404("File not found") from None
 
 
 @helpdesk_staff_member_required
