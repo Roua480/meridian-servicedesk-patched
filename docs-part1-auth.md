@@ -49,7 +49,20 @@ test database. These repeat the attacks against the actual view functions:
 - Delivery goes only to the saved address; database contains only the token hash.
 - GET is refused; password validation and mail-failure handling are covered.
 
-The Docker daemon was unavailable, so live nginx/PostgreSQL requests could not be
-rerun here. Migration consistency checking reported unrelated existing changes to
+Live verification completed on 2026-11-20 after Docker became available. The
+existing app container was recreated to load lab/auth.env; migration 0042 applied
+successfully. Confirmed PostgreSQL is in use and the active admin account exists.
+
+```powershell
+.venv/Scripts/python tests/live_auth_attacks.py
+```
+
+All three live attacks passed through http://127.0.0.1:5001 (nginx/Gunicorn):
+forged unsigned admin bearer token returned 401; admin and a unique nonexistent
+username received identical 200 responses and JSON bodies from /auth/forgot/;
+the computed MD5 reset token returned 401 from /auth/reset/. The script requests
+a reset email but never submits a valid password reset.
+
+Migration consistency checking reported unrelated existing changes to
 attachment upload paths and queue logging_dir; no extra migration was generated.
 The AGENTS.md reference .course/rules.md was absent in this checkout.
