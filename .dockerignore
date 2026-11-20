@@ -1,2 +1,7 @@
 db/
 .pytest_cache/
+
+.git/
+.venv/
+.pdm-build/
+lab/auth.env

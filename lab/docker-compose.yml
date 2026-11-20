@@ -49,7 +49,9 @@ services:
       context: ..
       dockerfile: lab/Dockerfile
     restart: unless-stopped
-    env_file: lab.env
+    env_file:
+      - lab.env
+      - auth.env
     expose:
       - "8000"
     # The source is mounted, not baked in, so a student edits a file and the

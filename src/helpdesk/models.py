@@ -2271,3 +2271,11 @@ class ChecklistTask(models.Model):
 
     def __str__(self):
         return self.description
+
+
+class PasswordResetToken(models.Model):
+    """Only a SHA-256 digest is persisted; raw credentials live in email."""
+
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    token_hash = models.CharField(max_length=64, unique=True)
+    expires_at = models.DateTimeField()

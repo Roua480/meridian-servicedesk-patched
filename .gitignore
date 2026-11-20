@@ -51,3 +51,6 @@ src/helpdesk/static/helpdesk/vendor/*
 
 # Separate local repository
 /security-incident-management-system/
+
+# Local authentication secrets
+/lab/auth.env

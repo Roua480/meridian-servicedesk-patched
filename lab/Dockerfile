@@ -32,7 +32,7 @@ RUN uv pip install -r /opt/meridian/standalone/requirements.txt
 WORKDIR /opt/meridian/standalone
 ENV DJANGO_SETTINGS_MODULE=standalone.config.settings
 ENV PYTHONPATH=/opt/meridian/src:/opt/meridian
-RUN MERIDIAN_SECRET_KEY=build-only python3 manage.py collectstatic --noinput
+RUN MERIDIAN_SECRET_KEY=build-only MERIDIAN_TOKEN_KEY=build-only-placeholder-not-used-at-runtime python3 manage.py collectstatic --noinput
 RUN chmod +x /opt/meridian/standalone/entrypoint.sh
 # The lab compose file overrides this with /lab/entrypoint.sh, which also runs
 # the seed. This default keeps the image usable on its own.

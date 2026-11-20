@@ -27,6 +27,11 @@ except KeyError:
         "MERIDIAN_SECRET_KEY environment variable is not set"
     ) from None
 
+# Separate bearer-token key, provisioned outside version control.
+MERIDIAN_TOKEN_KEY = os.environ.get("MERIDIAN_TOKEN_KEY", "")
+if len(MERIDIAN_TOKEN_KEY) < 32:
+    raise ImproperlyConfigured("Set MERIDIAN_TOKEN_KEY to at least 32 random characters")
+
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.environ.get("MERIDIAN_DEBUG", "False") == "True"
 
