@@ -48,3 +48,6 @@ src/helpdesk/static/helpdesk/vendor/*
 .vscode/
 .cursor/
 .devcontainer/
+
+# Separate local repository
+/security-incident-management-system/
